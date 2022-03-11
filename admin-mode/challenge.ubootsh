@@ -1,0 +1,106 @@
+# mkimage -A arm -T script -C none -n 'Challenge Script' -d challenge.ubootsh challenge.scr
+# load mmc 0:1 ${scriptaddr} challenge.scr; source ${scriptaddr}
+
+# be-5-a,71-6-6,ce-2-4,31-2-4,9c-5-a,ee-0-0,c0-c-3,dd-0-0,d8-5-a,ac-6-6,cd-1-8,49-d-b
+
+# C 0xfe804000
+# S 0xfe804004
+# DLEN 0xfe804008
+# A 0xfe80400c
+# FIFO 0xfe804010
+
+# XOR
+# 0 0 0 
+# 0 1 1
+# 1 0 1
+# 1 1 0
+
+# Generate Random Challenge
+random 0x23FFFFC 4
+setexpr nibbles *0x023FFFFC \& 0x000000FF
+setexpr nibble1 ${nibbles} / 0x10
+setexpr nibble2 ${nibbles} \& 0x0000000F
+setexpr expected ${nibble1} \^ ${nibble2}
+
+print nibbles ; print nibble1 ; print nibble2 ; print expected
+
+# set gpio config for i2c => 0xfe200000 |= 0x00000900
+setexpr v1 *0xfe200000 \| 0x00000900 ; mw.l 0xfe200000 ${v1} 1
+
+# clear gpio resistor config => 0xfe2000e4 &= 0xFFFFFF0F
+setexpr v1 *0xfe2000e4 \& 0xFFFFFF0F ; mw.l 0xfe2000e4 ${v1} 1
+# set gpio pull ups => 0xfe2000e4 &= 0x00000050
+setexpr v1 *0xfe2000e4 \| 0x00000050 ; mw.l 0xfe2000e4 ${v1} 1
+
+# enable i2c => 0xfe804000 = 0x00008000;
+mw.l 0xfe804000 0x00008000 1
+# Set address => 0xfe80400c = 0x00000020;
+mw.l 0xfe80400c 0x00000020 1
+
+# ---> Do writes
+# Set DLEN to 2 => 0xfe804008 = 2
+mw.l 0xfe804008 0x00000002 1
+
+# reset fifo => 0xfe804000 |= 0x00000030;
+setexpr v1 *0xfe804000 \| 0x00000030 ; mw.l 0xfe804000 ${v1} 1
+# Set GPIOB to output => 0xfe804010 = 0x01, 0xfe804010 = 0x00
+mw.l 0xfe804010 0x00000001 1
+mw.l 0xfe804010 0x00000000 1
+# reset done => 0xfe804004 = 1 << 1;
+mw.l 0xfe804004 0x00000002 1
+# write start => 0xfe804000 |= 0x00000080;
+setexpr v1 *0xfe804000 \| 0x00000080 ; mw.l 0xfe804000 ${v1} 1
+
+# ---> Check status
+#setexpr v1 *0xfe804004 \& 0x00000002 ; print v1
+sleep 0.1
+
+# reset fifo => 0xfe804000 |= 0x00000030;
+setexpr v1 *0xfe804000 \| 0x00000030 ; mw.l 0xfe804000 ${v1} 1
+# Set challenge params
+mw.l 0xfe804010 0x00000013 1
+mw.l 0xfe804010 ${nibbles} 1
+# reset done
+mw.l 0xfe804004 0x00000002 1
+# write start
+setexpr v1 *0xfe804000 \| 0x00000080 ; mw.l 0xfe804000 ${v1} 1
+# ---> Check status
+#setexpr v1 *0xfe804004 \& 0x00000002 ; print v1
+sleep 0.1
+
+# ---> Do read
+# Set DLEN to 1
+mw.l 0xfe804008 0x00000001 1
+# reset fifo
+setexpr v1 *0xfe804000 \| 0x00000030 ; mw.l 0xfe804000 ${v1} 1
+mw.l 0xfe804010 0x00000012 1
+# reset done
+mw.l 0xfe804004 0x00000002 1
+# write start
+setexpr v1 *0xfe804000 \| 0x00000080 ; mw.l 0xfe804000 ${v1} 1
+# ---> Check status
+#setexpr v1 *0xfe804004 \& 0x00000002 ; print v1
+sleep 0.1
+
+# reset fifo
+setexpr v1 *0xfe804000 \| 0x00000030 ; mw.l 0xfe804000 ${v1} 1
+# reset done
+mw.l 0xfe804004 0x00000002 1
+# read_start
+setexpr v1 *0xfe804000 \| 0x00000081 ; mw.l 0xfe804000 ${v1} 1
+# ---> Check status
+#setexpr v1 *0xfe804004 \& 0x00000002 ; print v1
+sleep 0.1
+# ---> Check FIFO
+setexpr v1 *0xfe804010 \& 0x0000000F
+
+setexpr result ${v1} ; print result
+
+if test $result -eq $expected ; then
+  setenv -f silent ; setenv bootdelay 10
+  echo "Admin Mode Enabled"
+  echo "Execute \"run kload kboot\" to boot kernel."
+else
+  echo "User Mode Enabled"
+  setenv bootargs "${bootargs} quiet" ; run kload kboot
+fi
