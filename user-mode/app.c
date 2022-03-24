@@ -1,5 +1,6 @@
 #include <curses.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define NORMAL 1
 #define HILITE 2
@@ -45,13 +46,13 @@ int getinput()
 {
     int ch = getch();
     switch (ch) {
-        case KEY_UP:
+        case 'w':
             return BUTTON_UP;
-        case KEY_DOWN:
+        case 's':
             return BUTTON_DOWN;
-        case KEY_LEFT:
+        case 'a':
             return BUTTON_LEFT;
-        case KEY_RIGHT:
+        case 'd':
             return BUTTON_RIGHT;
     }
     return BUTTON_NONE;
@@ -104,11 +105,20 @@ void render()
 
 int main(void)
 {
-    /* initialize curses */
+
+    FILE *tty_file = fopen("/dev/tty0", "r+");
+    //fwrite("mine\0", 5, 1, tty_file);
+    //fflush(tty_file);
+    SCREEN *tty_scr = newterm("xterm-16color", tty_file, stdin); 
+	/* initialize curses */
     state.running = TRUE;
     state.selected_field = 0;
+    WINDOW *init_win = initscr();
+    SCREEN *init_scr = set_term(tty_scr);
     WINDOW *win = initscr();
-    keypad(win, TRUE);
+
+    //set_term(tty_scr);
+    //keypad(win, TRUE);
     timeout(-1);
     start_color();
     init_pair(HILITE, COLOR_BLACK, COLOR_WHITE);
@@ -124,6 +134,9 @@ int main(void)
         process();
     }
     
+    set_term(init_scr);
+    nocbreak();
+    echo();
     endwin();
     exit(0);
 }
