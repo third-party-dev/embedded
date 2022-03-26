@@ -56,9 +56,15 @@ stdout=serial,vidconsole
 usb_boot=usb start; if usb dev ${devnum}; then devtype=usb; run scan_dev_for_boot_part; fi
 usbethaddr=dc:a6:32:33:c0:02
 vendor=raspberrypi
+bootargs1=coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1 bcm2708_fb.fbwidth=0 bcm2708_fb.fbheight=0 bcm2708_fb.fbswap=1 smsc95xx.macaddr=DC:A6:32:33:C0:02 vc_mem.mem_base=0x3ec00000 vc_mem.mem_size=0x40000000
+bootargs2=console=ttyS0,115200 console=tty1 root=PARTUUID=42842715-02 rootfstype=ext4 maxcpus=4 elevator=deadline fsck.repair=yes rootwait maxcpus=4
+bootargs3=fbcon=map:10 fbcon=font:VGA8x8
 bootargs=coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1 bcm2708_fb.fbwidth=0 bcm2708_fb.fbheight=0 bcm2708_fb.fbswap=1 smsc95xx.macaddr=DC:A6:32:33:C0:02 vc_mem.mem_base=0x3ec00000 vc_mem.mem_size=0x40000000 console=ttyS0,115200 console=tty1 root=PARTUUID=42842715-02 rootfstype=ext4 maxcpus=4 elevator=deadline fsck.repair=yes rootwait maxcpus=4
 kernel_comp_addr_r=0x0a000000
 kernel_comp_size=0x40000000
 kload_old=load mmc 0:1 $fdt_addr_r bcm2711-rpi-4-b.dtb ; load mmc 0:1 $kernel_addr_r ORIGINALkernel8.img
-kload=setenv fdt_addr_r 0x2eff3800 ; load mmc 0:1 $kernel_addr_r ORIGINALkernel8.img
+kload=setenv fdt_addr_r 0x2eff3300 ; load mmc 0:1 $kernel_addr_r ORIGINALkernel8.img ; load mmc 0:1 $ramdisk_addr_r initramfs.uboot
 kboot=booti $kernel_addr_r - $fdt_addr_r
+icmd=setenv bootargs "${bootargs1} ${bootargs2} fbcon=map:2 fbcon=font:VGA8x8"
+fload=setenv fdt_addr_r 0x2eff3300 ; load mmc 0:1 $kernel_addr_r fbkernel ; load mmc 0:1 $ramdisk_addr_r initramfs.uboot
+iboot=booti $kernel_addr_r $ramdisk_addr_r $fdt_addr_r
